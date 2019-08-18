@@ -29,8 +29,18 @@
 #define GETOPT_SUPPORT 1
 #endif
 
+#ifdef LIBINSTPATCH_SUPPORT
+#include <libinstpatch/libinstpatch.h>
+#endif
 #include "fluid_lash.h"
 
+#ifdef SYSTEMD_SUPPORT
+#include <systemd/sd-daemon.h>
+#endif
+
+#if SDL2_SUPPORT
+#include <SDL.h>
+#endif
 
 void print_usage(void);
 void print_help(fluid_settings_t *settings);
@@ -290,6 +300,23 @@ fast_render_loop(fluid_settings_t *settings, fluid_synth_t *synth, fluid_player_
     delete_fluid_file_renderer(renderer);
 }
 
+static int is_dls(const char *fname)
+{
+#ifdef LIBINSTPATCH_SUPPORT
+    IpatchFileHandle *fhandle = ipatch_file_identify_open(fname, NULL);
+    int ret = (fhandle != NULL);
+
+    if(ret)
+    {
+        ipatch_file_close(fhandle);
+    }
+
+    return ret;
+#else
+    return FALSE;
+#endif
+}
+
 /*
  * main
  * Process initialization steps in the following order:
@@ -342,6 +369,20 @@ int main(int argc, char **argv)
 
     lash_args = fluid_lash_extract_args(&argc, &argv);
 #endif
+
+#if SDL2_SUPPORT
+
+    if(SDL_Init(SDL_INIT_AUDIO) != 0)
+    {
+        fprintf(stderr, "Warning: Unable to initialize SDL2 Audio: %s", SDL_GetError());
+    }
+    else
+    {
+        atexit(SDL_Quit);
+    }
+
+#endif
+
 
     print_welcome();
 
@@ -747,7 +788,7 @@ int main(int argc, char **argv)
     /* load the soundfonts (check that all non options are SoundFont or MIDI files) */
     for(i = arg1; i < argc; i++)
     {
-        if(fluid_is_soundfont(argv[i]))
+        if(fluid_is_soundfont(argv[i]) || is_dls(argv[i]))
         {
             if(fluid_synth_sfload(synth, argv[i], 1) == -1)
             {
@@ -892,6 +933,14 @@ int main(int argc, char **argv)
             fprintf(stderr, "Failed to create the server.\n"
                     "Continuing without it.\n");
         }
+
+#ifdef SYSTEMD_SUPPORT
+        else
+        {
+            sd_notify(0, "READY=1");
+        }
+
+#endif
     }
 
 #endif
@@ -954,10 +1003,13 @@ cleanup:
             fluid_server_join(server);
         }
 
+#ifdef SYSTEMD_SUPPORT
+        sd_notify(0, "STOPPING=1");
+#endif
         delete_fluid_server(server);
     }
 
-#endif
+#endif	/* NETWORK_SUPPORT */
 
     if(cmd_handler != NULL)
     {

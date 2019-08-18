@@ -105,9 +105,8 @@ int fluid_is_midifile(const char *filename)
             return retcode;
         }
     #endif
-        
-        // file seems to exist and is a regular file or a symlink to such
-        if((fp = FLUID_FOPEN(filename, "rb")) == NULL)
+
+        if((fp = fluid_file_open(filename, NULL)) == NULL)
         {
             return retcode;
         }
@@ -1678,7 +1677,7 @@ new_fluid_player(fluid_synth_t *synth)
     player->currentfile = NULL;
     player->division = 0;
     player->send_program_change = 1;
-    player->miditempo = 480000;
+    player->miditempo = 500000;
     player->deltatime = 4.0;
     player->cur_msec = 0;
     player->cur_ticks = 0;
@@ -1762,7 +1761,7 @@ fluid_player_reset(fluid_player_t *player)
     player->ntracks = 0;
     player->division = 0;
     player->send_program_change = 1;
-    player->miditempo = 480000;
+    player->miditempo = 500000;
     player->deltatime = 4.0;
     return 0;
 }
@@ -1893,14 +1892,14 @@ fluid_player_load(fluid_player_t *player, fluid_playlist_item *item)
 
         buffer = fluid_file_read_full(fp, &buffer_length);
 
+        FLUID_FCLOSE(fp);
+
         if(buffer == NULL)
         {
-            FLUID_FCLOSE(fp);
             return FLUID_FAILED;
         }
 
         buffer_owned = 1;
-        FLUID_FCLOSE(fp);
     }
     else
     {
